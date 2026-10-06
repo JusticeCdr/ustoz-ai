@@ -26,6 +26,7 @@ import {
   Camera,
   Zap,
   Flame,
+  Code2,
 } from "lucide-react";
 import { CAREER_TRACKS, TELEGRAM_BOT_USERNAME } from "@/lib/constants";
 import { CareerTrackId, AuthParticipant } from "@/types";
@@ -41,6 +42,7 @@ interface RegistrationModalProps {
   initialMode?: "register" | "login" | "profile";
   onOpenAcademy?: (trackId?: CareerTrackId) => void;
   onOpenHub?: () => void;
+  onOpenCodeSandbox?: () => void;
 }
 
 export default function RegistrationModal({
@@ -53,6 +55,7 @@ export default function RegistrationModal({
   initialMode = "register",
   onOpenAcademy,
   onOpenHub,
+  onOpenCodeSandbox,
 }: RegistrationModalProps) {
   // Mode: register | login | profile
   const [mode, setMode] = useState<"register" | "login" | "profile">(
@@ -721,21 +724,36 @@ export default function RegistrationModal({
                     onClose();
                     if (onOpenHub) onOpenHub();
                   }}
+                  onOpenCodeSandbox={() => {
+                    onClose();
+                    if (onOpenCodeSandbox) onOpenCodeSandbox();
+                  }}
                 />
 
-                {/* Hub and Academy Action Buttons */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Hub, Academy and Code Sandbox Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onOpenCodeSandbox) onOpenCodeSandbox();
+                    }}
+                    className="py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:opacity-95 shadow-[0_0_25px_rgba(0,240,255,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group border border-cyan-400/40"
+                  >
+                    <Code2 className="w-4 h-4 text-cyan-300 animate-pulse" />
+                    <span>💻 Kod Yozish (HTML, CSS, Py)</span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={() => {
                       onClose();
                       if (onOpenHub) onOpenHub();
                     }}
-                    className="py-4 px-5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:opacity-95 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+                    className="py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:opacity-95 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
                   >
                     <Flame className="w-4 h-4 text-yellow-300 animate-pulse" />
-                    <span>🔥 Student Hub (Streak & Test)</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <span>🔥 Student Hub (Streak)</span>
                   </button>
 
                   <button
@@ -746,11 +764,10 @@ export default function RegistrationModal({
                         onOpenAcademy(participant.trackId);
                       }
                     }}
-                    className="py-4 px-5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:opacity-95 shadow-[0_0_25px_rgba(0,240,255,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+                    className="py-3.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-purple-500 via-pink-600 to-purple-700 hover:opacity-95 shadow-[0_0_25px_rgba(157,78,221,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
                   >
                     <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-                    <span>🎓 Video Darslar (+250 XP)</span>
-                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    <span>🎓 Video Darslar</span>
                   </button>
                 </div>
 

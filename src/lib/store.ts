@@ -457,6 +457,24 @@ export function updateUserProfile(
   return { ok: true, session };
 }
 
+export function addUserXp(
+  identifier: string,
+  xpToAdd: number
+): { ok: boolean; session?: RegistrationSession; error?: string } {
+  loadSessionsFromFile();
+  const session = findSessionByPhoneOrCode(identifier);
+  if (!session) {
+    return { ok: false, error: "Foydalanuvchi topilmadi." };
+  }
+
+  const validXp = Math.max(0, Math.min(1500, Math.round(xpToAdd)));
+  session.xp = (session.xp || 100) + validXp;
+
+  sessionsMap.set(session.sessionCode.toUpperCase(), session);
+  saveSessionsToFile();
+  return { ok: true, session };
+}
+
 export function getLeaderboard(): LeaderboardUser[] {
   loadSessionsFromFile();
   const verifiedList = Array.from(sessionsMap.values()).filter(

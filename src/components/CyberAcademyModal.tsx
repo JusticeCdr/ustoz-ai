@@ -44,6 +44,7 @@ interface CyberAcademyModalProps {
   currentUser?: AuthParticipant | null;
   onOpenRegister?: (trackId?: CareerTrackId) => void;
   initialTrackId?: CareerTrackId;
+  onOpenCodeSandbox?: () => void;
 }
 
 export default function CyberAcademyModal({
@@ -52,6 +53,7 @@ export default function CyberAcademyModal({
   currentUser,
   onOpenRegister,
   initialTrackId = "ai-prompt",
+  onOpenCodeSandbox,
 }: CyberAcademyModalProps) {
   const [selectedTrackId, setSelectedTrackId] = useState<CareerTrackId>(initialTrackId);
   const [activeLessonIndex, setActiveLessonIndex] = useState<number>(0);
@@ -269,6 +271,19 @@ export default function CyberAcademyModal({
                 >
                   <Flame className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
                   <span>Barcha Darslarni Ochish</span>
+                </button>
+              )}
+
+              {onOpenCodeSandbox && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onOpenCodeSandbox();
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-xs font-bold font-mono hover:bg-cyan-500/25 transition-all shadow-[0_0_12px_rgba(0,240,255,0.2)]"
+                >
+                  <Code2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                  <span>💻 Kod Sandbox</span>
                 </button>
               )}
 

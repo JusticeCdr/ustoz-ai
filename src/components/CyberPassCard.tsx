@@ -17,6 +17,7 @@ import {
   Camera,
   Flame,
   ArrowRight,
+  Code2,
 } from "lucide-react";
 
 interface CyberPassCardProps {
@@ -31,9 +32,15 @@ interface CyberPassCardProps {
   };
   onAvatarChange?: (newAvatarUrl: string) => void;
   onOpenDashboard?: () => void;
+  onOpenCodeSandbox?: () => void;
 }
 
-export default function CyberPassCard({ participant, onAvatarChange, onOpenDashboard }: CyberPassCardProps) {
+export default function CyberPassCard({
+  participant,
+  onAvatarChange,
+  onOpenDashboard,
+  onOpenCodeSandbox,
+}: CyberPassCardProps) {
   const [copied, setCopied] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -289,6 +296,17 @@ export default function CyberPassCard({ participant, onAvatarChange, onOpenDashb
           <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
           <span>Student Hubga O&apos;tish (Streak, Sinov Testi & Sertifikat)</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        </button>
+      )}
+
+      {/* Code Sandbox Direct Access */}
+      {onOpenCodeSandbox && (
+        <button
+          onClick={onOpenCodeSandbox}
+          className="w-full py-3 px-5 rounded-2xl font-bold text-xs uppercase tracking-wider text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/40 shadow-[0_0_20px_rgba(0,240,255,0.2)] transition-all flex items-center justify-center gap-2 group"
+        >
+          <Code2 className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <span>💻 Interaktiv Darslar & Kod Yozish (HTML, CSS, Python)</span>
         </button>
       )}
 

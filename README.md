@@ -30,6 +30,15 @@ Loyiha quyidagi asosiy xususiyatlarni o'z ichiga oladi:
   - **Telegram Botda:** Foydalanuvchi botga bevosita ovozli xabar (golos) yuboradi. AI ovozni tinglaydi, qiziqishlari va ko'nikmalarini tahlil qiladi hamda 5 ta zamonaviy kasbdan eng mosini 90-99% aniqlikda tanlab, to'g'ridan-to'g'ri ro'yxatdan o'tish tugmasini beradi.
   - **Veb-saytda:** Jonli mikrofon, real vaqtda ovoz to'lqinlari (Audio Visualizer), brauzer ichida nutqni aniqlash (Speech Recognition) va AI tavsiya oynasi.
   - **AI Dvigatellari:** Google Gemini 1.5/2.0 Flash (Multimodal Audio API), Groq/OpenAI Whisper hamda aqlli o'rnatilgan o'zbek tili neyron NLP tahlilchisi.
+- **💻 Interaktiv Darsliklar & In-App Kod Yozish Sandboxi (HTML, CSS, Python):**
+  - Ro'yxatdan o'tib bo'lgach (yoki Cyber Pass / Navbar orqali) foydalanuvchi uchun to'liq interaktiv dasturlash laboratoriyasi ochiladi.
+  - **HTML5:** Sarlavhalar, matnlar, interaktiv tugmalar, formalar, ro'yxatlar va amaliy mashqlar.
+  - **CSS3:** Neon kiberpank ranglar, Flexbox markazlashtirish, Glassmorphism va hover mikromotsiyalari.
+  - **Python:** `print()`, o'zgaruvchilar, mantiqiy `if/else` shartlari, `for` tsikllari, ro'yxatlar va funksiyalar.
+  - **Dastur ichida kod yozish va sinash:**
+    - HTML va CSS uchun jonli veb-preview (Live iframe browser preview).
+    - Python uchun real vaqtda konsol terminali (`$ python main.py`) va xatoliklarni tahlil qilish.
+    - Avtomatlashtirilgan mashq tekshirgich: to'g'ri bajarganda konfetti, +50 XP va keyingi darsni ochish!
 
 ---
 

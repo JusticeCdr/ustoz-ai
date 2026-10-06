@@ -15,16 +15,20 @@ import RegistrationModal from "@/components/RegistrationModal";
 import AIVoiceModal from "@/components/AIVoiceModal";
 import CyberAcademyModal from "@/components/CyberAcademyModal";
 import StudentHubDashboard from "@/components/StudentHubDashboard";
+import CyberCodeSandboxModal from "@/components/CyberCodeSandboxModal";
+import CyberMiniGame from "@/components/CyberMiniGame";
 import Background3D from "@/components/Background3D";
 import FaceScanCareer from "@/components/FaceScanCareer";
 import { CareerTrackId, AuthParticipant } from "@/types";
-import { Mic, Sparkles } from "lucide-react";
+import { Mic, Sparkles, Gamepad2 } from "lucide-react";
 
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isAcademyOpen, setIsAcademyOpen] = useState(false);
   const [isHubOpen, setIsHubOpen] = useState(false);
+  const [isGameModalOpen, setIsGameModalOpen] = useState(false);
+  const [isCodeSandboxOpen, setIsCodeSandboxOpen] = useState(false);
   const [academyTrackId, setAcademyTrackId] = useState<CareerTrackId>("ai-prompt");
   const [selectedTrackId, setSelectedTrackId] = useState<CareerTrackId | undefined>();
   const [currentUser, setCurrentUser] = useState<AuthParticipant | null>(null);
@@ -114,6 +118,14 @@ export default function Home() {
     setIsHubOpen(true);
   };
 
+  const handleOpenGame = () => {
+    setIsGameModalOpen(true);
+  };
+
+  const handleOpenCodeSandbox = () => {
+    setIsCodeSandboxOpen(true);
+  };
+
   const handleOpenQuiz = () => {
     const el = document.getElementById("ai-kviz");
     if (el) {
@@ -136,6 +148,8 @@ export default function Home() {
         onOpenVoiceAdvisor={handleOpenVoiceModal}
         onOpenAcademy={handleOpenAcademy}
         onOpenHub={handleOpenHub}
+        onOpenGame={handleOpenGame}
+        onOpenCodeSandbox={handleOpenCodeSandbox}
       />
 
       <div className="relative z-10">
@@ -165,6 +179,32 @@ export default function Home() {
 
         {/* Prizes Pool Showcase */}
         <PrizesSection onOpenRegister={() => handleOpenRegister()} />
+
+        {/* In-App Cyber Mini-Game Section Banner */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative">
+          <div className="relative rounded-3xl p-6 sm:p-8 glass-panel border border-pink-500/40 bg-gradient-to-r from-pink-950/30 via-[#0d1238]/70 to-purple-950/30 shadow-[0_0_50px_rgba(236,72,153,0.15)] overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="space-y-3 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pink-500/20 text-pink-300 border border-pink-400/40 text-xs font-mono font-bold">
+                <Gamepad2 className="w-3.5 h-3.5 animate-bounce" />
+                <span>KIBER ARCADE ARENASI &bull; KUNLIK 3 TA BEPUL URINISH</span>
+              </div>
+              <h3 className="text-2xl sm:text-3xl font-black text-white tracking-wide">
+                AI Core Defender: Kiber Nod Haker
+              </h3>
+              <p className="text-sm text-gray-300 max-w-2xl leading-relaxed">
+                Bosqichlar boshlanguncha kutib o&apos;tirmang! Mini-o&apos;yinda tushayotgan AI nodlarni tutib har 45 soniyada <b>+100 ~ 500 XP</b> to&apos;plang va Jonli Reytingda yetakchilik qiling.
+              </p>
+            </div>
+
+            <button
+              onClick={handleOpenGame}
+              className="px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-wider text-white bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500 hover:opacity-95 shadow-[0_0_30px_rgba(236,72,153,0.4)] transition-all hover:scale-105 active:scale-95 flex items-center gap-3 shrink-0"
+            >
+              <Gamepad2 className="w-5 h-5 text-white" />
+              <span>O&apos;yinni Boshlash (+XP)</span>
+            </button>
+          </div>
+        </section>
 
         {/* Live Cyberpunk Leaderboard */}
         <LeaderboardSection onOpenRegister={() => handleOpenRegister()} />
@@ -215,6 +255,7 @@ export default function Home() {
         onLogout={handleLogout}
         onOpenAcademy={handleOpenAcademy}
         onOpenHub={handleOpenHub}
+        onOpenCodeSandbox={handleOpenCodeSandbox}
       />
 
       {/* Ustoz AI Cyber Academy: Video Darslar & Interaktiv Kiber-Platforma */}
@@ -224,6 +265,15 @@ export default function Home() {
         currentUser={currentUser}
         onOpenRegister={handleOpenRegister}
         initialTrackId={academyTrackId}
+        onOpenCodeSandbox={handleOpenCodeSandbox}
+      />
+
+      {/* Cyber Code Sandbox: HTML, CSS & Python Darsliklar va Jonli Kod Yozish */}
+      <CyberCodeSandboxModal
+        isOpen={isCodeSandboxOpen}
+        onClose={() => setIsCodeSandboxOpen(false)}
+        currentUser={currentUser}
+        onUpdateUser={handleAuthSuccess}
       />
 
       {/* Post-Registration Student Hub / Dashboard (Streak, Mini-Quest, Mock Test, Project Submission & Verified Certificate) */}
@@ -246,6 +296,41 @@ export default function Home() {
         }
         onUpdateUser={handleAuthSuccess}
       />
+
+      {/* In-App Cyberpunk Mini-Game Modal */}
+      {isGameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div
+            onClick={() => setIsGameModalOpen(false)}
+            className="fixed inset-0 bg-black/85 backdrop-blur-md"
+          />
+          <div className="relative z-10 w-full max-w-4xl my-auto">
+            <CyberMiniGame
+              isModal
+              currentUser={currentUser}
+              onClose={() => setIsGameModalOpen(false)}
+              onAddXp={(earnedXp) => {
+                const current = currentUser || {
+                  participantId: "USTOZ-DEMO",
+                  fullName: "Ishtirokchi (Ustoz AI)",
+                  phone: "+998 90 123 45 67",
+                  trackId: selectedTrackId || "ai-prompt",
+                  trackTitle: "Sun'iy Intellekt va Prompt Engineering",
+                  xp: 150,
+                  referralLink: "https://t.me/ustoz_ai_bot?start=ref_demo",
+                  verifiedAt: Date.now(),
+                  badge: "Kiber Ishtirokchi",
+                  streakDays: 5,
+                };
+                handleAuthSuccess({
+                  ...current,
+                  xp: (current.xp || 100) + earnedXp,
+                });
+              }}
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }

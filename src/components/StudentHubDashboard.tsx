@@ -29,9 +29,11 @@ import {
   BookOpen,
   Github,
   X,
+  Gamepad2,
 } from "lucide-react";
 import { AuthParticipant, CareerTrackId } from "@/types";
 import { DAILY_QUESTS, MOCK_TESTS, MockTestQuestion } from "@/data/hubData";
+import CyberMiniGame from "./CyberMiniGame";
 
 interface StudentHubDashboardProps {
   isOpen: boolean;
@@ -47,7 +49,7 @@ export default function StudentHubDashboard({
   onUpdateUser,
 }: StudentHubDashboardProps) {
   // Navigation tabs in hub
-  const [activeTab, setActiveTab] = useState<"overview" | "quest" | "test" | "project" | "certificate">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "quest" | "test" | "project" | "certificate" | "arcade">("overview");
 
   // Streak & Daily check-in
   const [streakDays, setStreakDays] = useState(currentUser.streakDays || 5);
@@ -386,6 +388,21 @@ export default function StudentHubDashboard({
               {isCertificateUnlocked ? <Unlock className="w-4 h-4 text-emerald-400" /> : <Lock className="w-4 h-4" />}
               <span>Rasmiy Diplom</span>
             </button>
+
+            <button
+              onClick={() => setActiveTab("arcade")}
+              className={`px-4 py-2.5 text-xs font-mono font-bold uppercase tracking-wider rounded-t-xl transition-all border-b-2 flex items-center gap-2 ${
+                activeTab === "arcade"
+                  ? "border-pink-500 text-pink-300 bg-white/5"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4 text-pink-400 animate-pulse" />
+              <span>Mini-O&apos;yin (Arcade)</span>
+              <span className="text-[10px] bg-pink-500/20 text-pink-300 px-1.5 py-0.2 rounded font-mono border border-pink-400/30">
+                +XP
+              </span>
+            </button>
           </div>
 
           {/* Scrollable Hub Content */}
@@ -536,6 +553,42 @@ export default function StudentHubDashboard({
                       <span className="text-emerald-400 font-bold">PDF / PNG Diplom</span>
                     </div>
                   </div>
+                </div>
+
+                {/* 5. In-App Cyber Mini-Game: AI Core Defender Banner */}
+                <div
+                  onClick={() => setActiveTab("arcade")}
+                  className="p-5 rounded-2xl glass-panel border border-pink-500/40 hover:border-pink-400 bg-gradient-to-r from-pink-950/30 via-purple-950/25 to-black/50 cursor-pointer transition-all hover:scale-[1.01] group flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-[0_0_30px_rgba(236,72,153,0.15)]"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-pink-500 via-purple-600 to-cyan-400 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(236,72,153,0.5)] group-hover:scale-110 transition-transform">
+                      <Gamepad2 className="w-6 h-6 text-white animate-bounce" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-pink-400 uppercase tracking-wider">
+                          Kiber O&apos;yin &bull; Qo&apos;shimcha XP
+                        </span>
+                        <span className="text-[10px] bg-pink-500/20 text-pink-300 px-2 py-0.5 rounded font-mono border border-pink-400/30">
+                          YANGI ⚡
+                        </span>
+                      </div>
+                      <h4 className="text-base font-black text-white group-hover:text-pink-300 transition-colors">
+                        AI Core Defender: Kiber Nod Haker
+                      </h4>
+                      <p className="text-xs text-gray-300 mt-0.5">
+                        Bosqichlar boshlanguncha vaqtni unumli o&apos;tkazing: nodlarni tutib har raundda +100~500 XP to&apos;plang va reytingda ko&apos;tariling!
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab("arcade")}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-[0_0_15px_rgba(236,72,153,0.4)] flex items-center gap-2 shrink-0 group-hover:opacity-95"
+                  >
+                    <span>O&apos;ynash</span>
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
                 </div>
               </div>
             )}
@@ -921,6 +974,23 @@ export default function StudentHubDashboard({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ================= TAB 6: ARCADE MINI-GAME ================= */}
+            {activeTab === "arcade" && (
+              <div className="space-y-4 max-w-4xl mx-auto">
+                <CyberMiniGame
+                  currentUser={currentUser}
+                  onAddXp={(earnedXp) => {
+                    const newXp = (currentUser.xp || 100) + earnedXp;
+                    const updated = {
+                      ...currentUser,
+                      xp: newXp,
+                    };
+                    onUpdateUser(updated);
+                  }}
+                />
               </div>
             )}
           </div>

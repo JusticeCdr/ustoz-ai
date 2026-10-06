@@ -1,5 +1,6 @@
 @echo off
 set "PATH=C:\Program Files\nodejs;%PATH%"
+cd /d "%~dp0"
 title Ustoz AI - Telegram Bot (@zamonaviy_kasblarr_bot)
 echo ========================================================
 echo   Ustoz AI - Telegram Bot Polling Xizmati
