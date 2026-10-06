@@ -15,14 +15,17 @@ import {
   Clock,
   BrainCircuit,
   TrendingUp,
+  Mic,
+  Scan,
 } from "lucide-react";
 
 interface Hero3DProps {
   onOpenRegister: () => void;
   onOpenQuiz: () => void;
+  onOpenVoiceAdvisor?: () => void;
 }
 
-export default function Hero3D({ onOpenRegister, onOpenQuiz }: Hero3DProps) {
+export default function Hero3D({ onOpenRegister, onOpenQuiz, onOpenVoiceAdvisor }: Hero3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
 
   // FOMO Countdown Timer (e.g. 5 days from now)
@@ -395,11 +398,29 @@ export default function Hero3D({ onOpenRegister, onOpenQuiz }: Hero3DProps) {
 
             <button
               onClick={onOpenQuiz}
-              className="px-7 py-4 rounded-xl font-semibold text-gray-200 glass-panel border border-purple-400/40 hover:border-purple-400 hover:text-purple-300 transition-all duration-300 text-center flex items-center justify-center gap-2 hover:bg-white/10"
+              className="px-6 py-4 rounded-xl font-semibold text-gray-200 glass-panel border border-purple-400/40 hover:border-purple-400 hover:text-purple-300 transition-all duration-300 text-center flex items-center justify-center gap-2 hover:bg-white/10"
             >
               <BrainCircuit className="w-4 h-4 text-purple-400" />
-              <span>Kasbimni Aniqlash (AI Kviz)</span>
+              <span>AI Kviz Test</span>
             </button>
+
+            <a
+              href="#yuz-skaner"
+              className="px-6 py-4 rounded-xl font-semibold text-cyan-300 glass-panel border border-cyan-400/40 hover:border-cyan-300 hover:text-white transition-all duration-300 text-center flex items-center justify-center gap-2 hover:bg-cyan-500/20 shadow-[0_0_15px_rgba(0,240,255,0.2)]"
+            >
+              <Scan className="w-4 h-4 text-cyan-400 animate-pulse" />
+              <span>Yuz Skaneri (AI)</span>
+            </a>
+
+            {onOpenVoiceAdvisor && (
+              <button
+                onClick={onOpenVoiceAdvisor}
+                className="px-6 py-4 rounded-xl font-bold text-cyan-300 glass-panel border border-cyan-400/50 hover:border-cyan-300 hover:text-white transition-all duration-300 text-center flex items-center justify-center gap-2.5 hover:bg-cyan-500/20 shadow-[0_0_20px_rgba(0,240,255,0.25)] group"
+              >
+                <Mic className="w-4 h-4 text-cyan-400 animate-pulse group-hover:scale-125 transition-transform" />
+                <span>Ovoz orqali Tanlash (AI)</span>
+              </button>
+            )}
           </motion.div>
         </div>
 

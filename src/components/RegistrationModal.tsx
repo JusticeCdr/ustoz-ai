@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import QRCode from "qrcode";
 import confetti from "canvas-confetti";
 import {
   X,
@@ -13,7 +12,6 @@ import {
   ExternalLink,
   ShieldCheck,
   Sparkles,
-  QrCode,
   ArrowRight,
   ArrowLeft,
   KeyRound,
@@ -22,45 +20,81 @@ import {
   User,
   Layers,
   HelpCircle,
+  LogIn,
+  UserPlus,
+  LogOut,
+  Camera,
+  Zap,
+  Flame,
 } from "lucide-react";
-import { CAREER_TRACKS } from "@/lib/constants";
-import { CareerTrackId } from "@/types";
+import { CAREER_TRACKS, TELEGRAM_BOT_USERNAME } from "@/lib/constants";
+import { CareerTrackId, AuthParticipant } from "@/types";
 import CyberPassCard from "./CyberPassCard";
 
 interface RegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   preselectedTrackId?: CareerTrackId;
+  currentUser?: AuthParticipant | null;
+  onAuthSuccess?: (user: AuthParticipant) => void;
+  onLogout?: () => void;
+  initialMode?: "register" | "login" | "profile";
+  onOpenAcademy?: (trackId?: CareerTrackId) => void;
+  onOpenHub?: () => void;
 }
 
 export default function RegistrationModal({
   isOpen,
   onClose,
   preselectedTrackId,
+  currentUser,
+  onAuthSuccess,
+  onLogout,
+  initialMode = "register",
+  onOpenAcademy,
+  onOpenHub,
 }: RegistrationModalProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // Mode: register | login | profile
+  const [mode, setMode] = useState<"register" | "login" | "profile">(
+    currentUser ? "profile" : initialMode
+  );
 
-  // Form State
+  // Steps: 1 (Form) | 2 (Waiting Bot Start) | 3 (Enter OTP) | 4 (Success / CyberPass)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(currentUser ? 4 : 1);
+
+  // Form fields
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("+998 ");
   const [trackId, setTrackId] = useState<CareerTrackId>(
     preselectedTrackId || CAREER_TRACKS[0].id
   );
 
-  // API State
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [sessionCode, setSessionCode] = useState("");
-  const [deepLink, setDeepLink] = useState("");
-  const [qrDataUrl, setQrDataUrl] = useState("");
-  const [hasCopied, setHasCopied] = useState(false);
-
-  // OTP State
+  // OTP & Timer (1 minute = 60s)
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
+  const [timerSeconds, setTimerSeconds] = useState(60);
+  const [canResend, setCanResend] = useState(false);
   const otpInputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Verified Participant Data
-  const [participant, setParticipant] = useState<any>(null);
+  // Session & UI state
+  const [sessionCode, setSessionCode] = useState("");
+  const [botUrl, setBotUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Verified Participant
+  const [participant, setParticipant] = useState<AuthParticipant | null>(currentUser || null);
+
+  useEffect(() => {
+    if (currentUser) {
+      setParticipant(currentUser);
+      setMode("profile");
+      setStep(4);
+    } else {
+      setMode(initialMode || "register");
+      setStep(1);
+    }
+  }, [currentUser, initialMode, isOpen]);
 
   useEffect(() => {
     if (preselectedTrackId) {
@@ -68,7 +102,24 @@ export default function RegistrationModal({
     }
   }, [preselectedTrackId]);
 
-  // Polling for Telegram interaction in Step 2
+  // 60-second countdown timer for OTP
+  useEffect(() => {
+    let interval: any = null;
+    if (step === 3 && timerSeconds > 0) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [step, timerSeconds]);
+
+  // Polling for bot start in Step 2 (if user had not started the bot yet)
   useEffect(() => {
     if (step !== 2 || !sessionCode) return;
 
@@ -79,18 +130,21 @@ export default function RegistrationModal({
         if (data.ok && data.hasOtpGenerated) {
           // Telegram bot generated OTP! Auto-advance to Step 3
           setStep(3);
+          setTimerSeconds(60);
+          setCanResend(false);
+          setErrorMessage("");
         }
       } catch (e) {
         console.error("Status polling error:", e);
       }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(interval);
   }, [step, sessionCode]);
 
   // Confetti trigger for Step 4
   useEffect(() => {
-    if (step === 4) {
+    if (step === 4 && !currentUser) {
       try {
         confetti({
           particleCount: 120,
@@ -100,29 +154,36 @@ export default function RegistrationModal({
         });
       } catch (e) {}
     }
-  }, [step]);
+  }, [step, currentUser]);
 
-  // Step 1: Initiate
-  const handleInitiate = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Send OTP (Register or Login)
+  const handleSendCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
-    if (!fullName.trim() || fullName.trim().length < 2) {
-      setErrorMessage("Iltimos, ism va familiyangizni to'liq kiriting.");
+    const cleanPhoneDigits = phone.replace(/\D/g, "");
+    if (cleanPhoneDigits.length < 9) {
+      setErrorMessage("Iltimos, telefon raqamingizni to'liq kiriting.");
       return;
     }
 
-    if (phone.replace(/\D/g, "").length < 9) {
-      setErrorMessage("Iltimos, to'liq telefon raqamingizni kiriting.");
+    if (mode === "register" && (!fullName.trim() || fullName.trim().length < 2)) {
+      setErrorMessage("Iltimos, ism va familiyangizni to'liq kiriting (kamida 2 harf).");
       return;
     }
 
     setLoading(true);
     try {
-      const res = await fetch("/api/register/initiate", {
+      const res = await fetch("/api/auth/send-code", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, phone, trackId }),
+        body: JSON.stringify({
+          phone,
+          fullName: mode === "register" ? fullName : undefined,
+          trackId: mode === "register" ? trackId : undefined,
+          isLogin: mode === "login",
+        }),
       });
       const data = await res.json();
 
@@ -133,28 +194,28 @@ export default function RegistrationModal({
       }
 
       setSessionCode(data.sessionCode);
-      setDeepLink(data.deepLink);
 
-      // Generate QR Code data URL
-      const qr = await QRCode.toDataURL(data.deepLink, {
-        margin: 2,
-        width: 320,
-        color: {
-          dark: "#00f0ff",
-          light: "#0d132b",
-        },
-      });
-      setQrDataUrl(qr);
-
-      setStep(2);
+      if (data.sent) {
+        // Code sent directly to Telegram!
+        setStep(3);
+        setTimerSeconds(60);
+        setCanResend(false);
+        setOtpDigits(["", "", "", "", "", ""]);
+        setSuccessMessage("Tasdiqlash kodi Telegram botingizga yuborildi!");
+        setTimeout(() => otpInputsRef.current[0]?.focus(), 100);
+      } else if (data.requiresBotStart) {
+        // User needs to open bot and press Start
+        setBotUrl(data.botUrl || `https://t.me/${TELEGRAM_BOT_USERNAME}`);
+        setStep(2);
+      }
     } catch (err: any) {
-      setErrorMessage("Tarmoq xatosi. Iltimos, qaytadan urinib ko'ring.");
+      setErrorMessage("Tarmoq xatosi. Iltimos qaytadan urinib ko'ring.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Step 3: Handle OTP input typing
+  // Handle OTP input typing
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) {
       const clean = value.replace(/\D/g, "").slice(0, 6);
@@ -165,6 +226,7 @@ export default function RegistrationModal({
       setOtpDigits(newDigits);
       if (clean.length === 6) {
         otpInputsRef.current[5]?.focus();
+        handleVerifyOtp(clean);
       }
       return;
     }
@@ -177,6 +239,14 @@ export default function RegistrationModal({
     if (digit && index < 5) {
       otpInputsRef.current[index + 1]?.focus();
     }
+
+    // Auto verify if all 6 digits entered
+    if (digit && index === 5) {
+      const full = newDigits.join("");
+      if (full.length === 6) {
+        handleVerifyOtp(full);
+      }
+    }
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -185,10 +255,9 @@ export default function RegistrationModal({
     }
   };
 
-  // Step 3: Verify OTP
-  const handleVerify = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const fullOtp = otpDigits.join("").trim();
+  // Verify OTP
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const fullOtp = codeOverride || otpDigits.join("").trim();
     if (fullOtp.length < 6) {
       setErrorMessage("Iltimos, Telegram botdan kelgan 6 xonali parolni to'liq kiriting.");
       return;
@@ -197,24 +266,39 @@ export default function RegistrationModal({
     setLoading(true);
     setErrorMessage("");
     try {
-      const res = await fetch("/api/register/verify", {
+      const res = await fetch("/api/auth/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sessionCode,
+          phone,
           otp: fullOtp,
+          fullName: mode === "register" ? fullName : undefined,
+          trackId: mode === "register" ? trackId : undefined,
+          isLogin: mode === "login",
         }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        setErrorMessage(data.message || "Kod noto'g'ri. Qayta tekshirib ko'ring.");
+        setErrorMessage(data.message || "Kod noto'g'ri yoki muddati tugagan.");
         setLoading(false);
         return;
       }
 
-      setParticipant(data.participant);
+      const p: AuthParticipant = data.participant;
+      setParticipant(p);
       setStep(4);
+      setMode("profile");
+
+      // Save persistent session in localStorage
+      try {
+        localStorage.setItem("ustoz_auth_user", JSON.stringify(p));
+      } catch (e) {}
+
+      if (onAuthSuccess) {
+        onAuthSuccess(p);
+      }
     } catch (err: any) {
       setErrorMessage("Tarmoq xatosi. Qaytadan urinib ko'ring.");
     } finally {
@@ -222,13 +306,57 @@ export default function RegistrationModal({
     }
   };
 
-  const copySessionCode = () => {
-    navigator.clipboard.writeText(sessionCode);
-    setHasCopied(true);
-    setTimeout(() => setHasCopied(false), 2000);
+  // Resend code
+  const handleResend = async () => {
+    if (!canResend) return;
+    setOtpDigits(["", "", "", "", "", ""]);
+    setErrorMessage("");
+    await handleSendCode();
+  };
+
+  // Avatar update
+  const handleAvatarUpdate = (newAvatarUrl: string) => {
+    if (participant) {
+      const updated = { ...participant, avatarUrl: newAvatarUrl };
+      setParticipant(updated);
+      try {
+        localStorage.setItem("ustoz_auth_user", JSON.stringify(updated));
+      } catch (e) {}
+      if (onAuthSuccess) {
+        onAuthSuccess(updated);
+      }
+    }
+  };
+
+  // Avatar file input change in profile
+  const handleProfileAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !participant) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      handleAvatarUpdate(base64);
+      try {
+        await fetch("/api/user/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            identifier: participant.participantId,
+            avatarUrl: base64,
+          }),
+        });
+      } catch (err) {}
+    };
+    reader.readAsDataURL(file);
   };
 
   if (!isOpen) return null;
+
+  const formatTimer = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
 
   return (
     <AnimatePresence>
@@ -238,20 +366,17 @@ export default function RegistrationModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-black/85 backdrop-blur-md"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md"
         />
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 20 }}
-          transition={{ duration: 0.3 }}
-          className="relative w-full max-w-2xl rounded-3xl glass-panel border border-cyan-400/40 bg-[#070b1a]/95 text-white shadow-2xl overflow-hidden z-10 my-8"
+          initial={{ scale: 0.95, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.95, opacity: 0, y: 20 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="relative w-full max-w-xl rounded-3xl bg-[#090d22] border border-cyan-400/40 shadow-[0_0_50px_rgba(6,182,212,0.25)] overflow-hidden z-10 my-auto"
         >
-          {/* Top glowing bar */}
-          <div className="h-1.5 w-full bg-gradient-to-r from-cyan-400 via-purple-500 to-amber-400" />
-
-          {/* Close button */}
+          {/* Close Button */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-colors z-20"
@@ -259,8 +384,8 @@ export default function RegistrationModal({
             <X className="w-5 h-5" />
           </button>
 
-          {/* Modal Header & Progress */}
-          <div className="p-6 sm:p-8 pb-4 border-b border-white/10">
+          {/* Modal Header */}
+          <div className="p-6 sm:p-7 pb-4 border-b border-white/10">
             <div className="flex items-center gap-2.5 mb-2">
               <div className="relative w-6 h-6 rounded-lg p-[1.5px] bg-gradient-to-tr from-cyan-400 to-purple-500 shrink-0">
                 <div className="w-full h-full rounded-[6px] overflow-hidden bg-[#070b1a] relative">
@@ -274,64 +399,97 @@ export default function RegistrationModal({
                 </div>
               </div>
               <span className="text-cyan-400 text-xs font-mono font-bold tracking-widest uppercase">
-                USTOZ AI • TANLOVGA RO&apos;YXATDAN O&apos;TISH
+                USTOZ AI • PLATFORMA
               </span>
             </div>
+
             <h3 className="text-2xl sm:text-3xl font-extrabold text-white">
-              {step === 1 && "Shaxsiy Ma'lumotlarni Kiriting"}
-              {step === 2 && "Telegram Bot Orqali Tasdiqlash"}
-              {step === 3 && "Bir Martalik Parolni Kiriting"}
-              {step === 4 && "Cyber Pass Rasmiylashtirildi!"}
+              {step === 4 && participant && "Shaxsiy Kabinet & Cyber Pass"}
+              {step === 1 && mode === "register" && "Tanlovga Ro'yxatdan O'tish"}
+              {step === 1 && mode === "login" && "Akkauntga Kirish"}
+              {step === 2 && "Telegram Botni Tasdiqlash"}
+              {step === 3 && "Bir Martalik Parol (OTP)"}
             </h3>
 
-            {/* Stepper Dots */}
-            <div className="flex items-center justify-between gap-2 mt-5">
-              {[1, 2, 3, 4].map((s) => (
-                <div key={s} className="flex-1 flex items-center gap-2">
-                  <div
-                    className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                      step >= s
-                        ? "bg-gradient-to-r from-cyan-400 to-blue-500"
-                        : "bg-white/10"
-                    }`}
-                  />
-                </div>
-              ))}
-            </div>
+            {/* Mode Switch Tabs (Only if not already authenticated or in step 1) */}
+            {step === 1 && !currentUser && (
+              <div className="flex items-center gap-2 mt-4 p-1 rounded-xl bg-white/5 border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("register");
+                    setErrorMessage("");
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    mode === "register"
+                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Ro&apos;yxatdan O&apos;tish</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("login");
+                    setErrorMessage("");
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                    mode === "login"
+                      ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/20"
+                      : "text-gray-400 hover:text-white"
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  <span>Akkauntga Kirish</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Modal Body */}
-          <div className="p-6 sm:p-8 pt-6">
+          <div className="p-6 sm:p-7 pt-5">
+            {/* Error & Success Alerts */}
             {errorMessage && (
-              <div className="mb-5 p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-sm flex items-center gap-2 font-medium">
-                <span className="w-2 h-2 rounded-full bg-red-400 animate-ping" />
-                {errorMessage}
+              <div className="mb-5 p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-medium flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping shrink-0" />
+                <span>{errorMessage}</span>
               </div>
             )}
 
-            {/* ================= STEP 1: FORM ================= */}
+            {successMessage && (
+              <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs font-medium flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{successMessage}</span>
+              </div>
+            )}
+
+            {/* ================= STEP 1: PHONE & NAME FORM ================= */}
             {step === 1 && (
-              <form onSubmit={handleInitiate} className="space-y-5">
-                <div>
-                  <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-2">
-                    Ism va Familiya
-                  </label>
-                  <div className="relative">
-                    <User className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Masalan: Sardor Rustamov"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/5 border border-white/15 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-white placeholder-gray-500 text-sm outline-none transition-all"
-                    />
+              <form onSubmit={handleSendCode} className="space-y-4">
+                {mode === "register" && (
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                      F.I.SH (Ism va Familiya)
+                    </label>
+                    <div className="relative">
+                      <User className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="text"
+                        required
+                        placeholder="Masalan: Sardor Rustamov"
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/5 border border-white/15 focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 text-white placeholder-gray-500 text-sm outline-none transition-all"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div>
-                  <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-2">
-                    Telefon Raqam (Telegram ulangan raqam)
+                  <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                    Telefon Raqam (Telegram raqamingiz)
                   </label>
                   <div className="relative">
                     <Phone className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -345,32 +503,34 @@ export default function RegistrationModal({
                     />
                   </div>
                   <div className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 font-mono">
-                    <HelpCircle className="w-3 h-3 text-cyan-400" />
-                    <span>Telegramdagi raqamingiz bo&apos;yicha bot sizni avtomatik aniqlaydi</span>
+                    <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Tasdiqlash kodi to&apos;g&apos;ridan-to&apos;g&apos;ri Telegram botingizga yuboriladi</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-2">
-                    Tanlov Yo&apos;nalishi
-                  </label>
-                  <div className="relative">
-                    <Layers className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <select
-                      value={trackId}
-                      onChange={(e) => setTrackId(e.target.value as CareerTrackId)}
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-[#0e1635] border border-white/15 focus:border-cyan-400 text-white text-sm outline-none cursor-pointer transition-all"
-                    >
-                      {CAREER_TRACKS.map((t) => (
-                        <option key={t.id} value={t.id} className="bg-[#0b1026] text-white py-2">
-                          {t.title}
-                        </option>
-                      ))}
-                    </select>
+                {mode === "register" && (
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-gray-300 uppercase tracking-wider mb-1.5">
+                      Tanlov Yo&apos;nalishi
+                    </label>
+                    <div className="relative">
+                      <Layers className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <select
+                        value={trackId}
+                        onChange={(e) => setTrackId(e.target.value as CareerTrackId)}
+                        className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-[#0e1635] border border-white/15 focus:border-cyan-400 text-white text-sm outline-none cursor-pointer transition-all"
+                      >
+                        {CAREER_TRACKS.map((t) => (
+                          <option key={t.id} value={t.id} className="bg-[#0b1026] text-white py-2">
+                            {t.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                <div className="pt-3">
+                <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}
@@ -380,183 +540,247 @@ export default function RegistrationModal({
                       <RefreshCw className="w-5 h-5 animate-spin" />
                     ) : (
                       <>
-                        <span>Keyingi Bosqich (Telegram Tasdiqlash)</span>
+                        <span>Telegramga Kodni Yuborish</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
                   </button>
                 </div>
+
+                {/* Subtext toggle */}
+                <div className="text-center pt-2">
+                  {mode === "register" ? (
+                    <button
+                      type="button"
+                      onClick={() => setMode("login")}
+                      className="text-xs text-gray-400 hover:text-cyan-300 transition-colors"
+                    >
+                      Allaqachon ro&apos;yxatdan o&apos;tganmisiz? <span className="text-cyan-400 font-bold">Akkauntga kirish</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setMode("register")}
+                      className="text-xs text-gray-400 hover:text-cyan-300 transition-colors"
+                    >
+                      Hali ro&apos;yxatdan o&apos;tmaganmisiz? <span className="text-cyan-400 font-bold">Ro&apos;yxatdan o&apos;tish</span>
+                    </button>
+                  )}
+                </div>
               </form>
             )}
 
-            {/* ================= STEP 2: TELEGRAM BOT VERIFY ================= */}
+            {/* ================= STEP 2: BOT START REQUIRED ================= */}
             {step === 2 && (
-              <div className="space-y-6 text-center">
-                <div className="p-4 rounded-2xl bg-cyan-950/40 border border-cyan-400/30 text-left">
-                  <div className="text-xs text-gray-400 font-mono mb-1">Maxsus seans kodi:</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-black font-mono tracking-widest text-cyan-300">
-                      {sessionCode}
-                    </span>
-                    <button
-                      onClick={copySessionCode}
-                      className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs font-semibold text-gray-200 flex items-center gap-1.5 transition-all"
-                    >
-                      {hasCopied ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                          <span>Nusxalandi</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          <span>Kodni nusxalash</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+              <div className="space-y-6 text-center py-2">
+                <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-400/40 flex items-center justify-center mx-auto shadow-neonCyan text-cyan-300">
+                  <Bot className="w-8 h-8 animate-bounce" />
                 </div>
 
-                {/* QR Code and Instructions */}
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-6 py-2">
-                  {qrDataUrl && (
-                    <div className="p-3 bg-[#0d132b] rounded-2xl border border-cyan-400/40 shadow-neonCyan">
-                      <img
-                        src={qrDataUrl}
-                        alt="Telegram QR Code"
-                        className="w-36 h-36 rounded-xl"
-                      />
-                      <div className="text-[10px] font-mono text-cyan-400 text-center mt-2 flex items-center justify-center gap-1">
-                        <QrCode className="w-3 h-3" />
-                        <span>Kamera bilan skanerlang</span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="text-left space-y-2.5 max-w-xs">
-                    <h4 className="font-bold text-white text-base">Botda parolni olish usullari:</h4>
-                    <ul className="text-xs text-gray-300 space-y-2">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-cyan-400 font-bold">1.</span>
-                        <span>Quyidagi tugmani bosing va botda <b>«START»</b> tugmasini bosing</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-cyan-400 font-bold">2.</span>
-                        <span>Yoki botga telefon raqamingizni (<b>{phone}</b>) yozib yuboring</span>
-                      </li>
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-cyan-400 font-bold">3.</span>
-                        <span>Bot sizga <b>6 xonali tasdiqlash paroli</b>ni beradi!</span>
-                      </li>
-                    </ul>
-                  </div>
+                <div className="space-y-2">
+                  <h4 className="text-lg font-bold text-white">
+                    Telegram Botda Tasdiqlash
+                  </h4>
+                  <p className="text-xs text-gray-300 max-w-sm mx-auto leading-relaxed">
+                    Kodni qabul qilish uchun quyidagi tugmani bosing va rasmiy botimizda <b className="text-cyan-300">«START»</b> (yoki «Kontaktni yuborish») tugmasini bosing:
+                  </p>
                 </div>
 
-                {/* Open in Telegram Button */}
-                <div className="space-y-3">
-                  <a
-                    href={deepLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-4 rounded-xl font-bold text-sm tracking-wider text-white bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-600 hover:from-blue-400 hover:to-cyan-400 shadow-neonCyan transition-all flex items-center justify-center gap-2 group"
-                  >
-                    <Bot className="w-5 h-5" />
-                    <span>Telegram Botda Ochish</span>
-                    <ExternalLink className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                  </a>
+                <a
+                  href={botUrl || `https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-4 rounded-xl font-bold text-sm uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-neonCyan transition-all flex items-center justify-center gap-2 group"
+                >
+                  <Bot className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span>Telegram Botni Ochish va Start Bosish</span>
+                  <ExternalLink className="w-4 h-4 ml-1" />
+                </a>
 
-                  {/* Manual move to step 3 */}
+                <div className="flex items-center justify-center gap-2 text-xs font-mono text-cyan-400 pt-2">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Bot orqali tasdiqlash kutilmoqda (avtomatik o&apos;tadi)...</span>
+                </div>
+
+                <div className="pt-2">
                   <button
-                    onClick={() => setStep(3)}
-                    className="w-full py-3 rounded-xl font-semibold text-xs text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setErrorMessage("");
+                    }}
+                    className="text-xs text-gray-400 hover:text-gray-200 flex items-center gap-1 mx-auto"
                   >
-                    <KeyRound className="w-4 h-4 text-cyan-400" />
-                    <span>Parolni allaqachon oldim, kiritishga o&apos;tish</span>
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Raqamni qayta kiritish</span>
                   </button>
-                </div>
-
-                {/* Live listening pulse */}
-                <div className="flex items-center justify-center gap-2 text-xs text-cyan-400 font-mono">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                  <span>Telegram bot xabari avtomatik kutilmoqda...</span>
                 </div>
               </div>
             )}
 
-            {/* ================= STEP 3: OTP INPUT ================= */}
+            {/* ================= STEP 3: OTP VERIFY WITH 1-MIN TIMER ================= */}
             {step === 3 && (
-              <form onSubmit={handleVerify} className="space-y-6 text-center">
-                <div className="space-y-1">
-                  <div className="w-12 h-12 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 mx-auto flex items-center justify-center mb-3">
-                    <KeyRound className="w-6 h-6" />
+              <div className="space-y-6 text-center py-2">
+                <div className="space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-cyan-300 text-xs font-mono">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    <span>Tasdiqlash Kodi</span>
                   </div>
-                  <h4 className="text-lg font-bold text-white">
-                    Telegram Botdan Kelgan Parol
+                  <h4 className="text-xl font-extrabold text-white">
+                    Telegram Botdan Kelgan Kodni Kiriting
                   </h4>
-                  <p className="text-xs text-gray-400 max-w-md mx-auto">
-                    Telegram botimiz sizga 6 xonali tasdiqlash parolini yubordi.
+                  <p className="text-xs text-gray-400">
+                    <b className="text-gray-200">{phone}</b> raqamingizga bog&apos;langan botga 6 xonali tasdiqlash paroli yuborildi.
                   </p>
                 </div>
 
-                {/* 6 Digit Inputs */}
-                <div className="flex justify-center gap-2 sm:gap-3 py-2">
-                  {otpDigits.map((digit, index) => (
+                {/* 6 Digit Input Boxes */}
+                <div className="flex items-center justify-center gap-2 sm:gap-3 py-2">
+                  {otpDigits.map((digit, idx) => (
                     <input
-                      key={index}
+                      key={idx}
                       ref={(el) => {
-                        otpInputsRef.current[index] = el;
+                        otpInputsRef.current[idx] = el;
                       }}
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
                       value={digit}
-                      onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-11 h-14 sm:w-14 sm:h-16 text-center text-xl sm:text-2xl font-bold font-mono rounded-xl bg-white/5 border border-white/20 focus:border-cyan-400 focus:bg-white/10 focus:ring-2 focus:ring-cyan-400/30 text-white outline-none transition-all shadow-inner"
+                      onChange={(e) => handleOtpChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                      className="w-11 h-14 sm:w-12 sm:h-16 text-center text-2xl font-black font-mono rounded-xl bg-white/5 border-2 border-white/20 focus:border-cyan-400 focus:bg-cyan-500/10 text-white outline-none transition-all"
                     />
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-gray-400 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="hover:text-cyan-300 flex items-center gap-1 transition-colors"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Bot havolasiga qaytish</span>
-                  </button>
-                  <a
-                    href={deepLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline flex items-center gap-1"
-                  >
-                    <span>Kodni qayta yuborish</span>
-                    <RefreshCw className="w-3 h-3" />
-                  </a>
+                {/* 1 Minute Countdown Timer */}
+                <div className="flex items-center justify-center gap-2 text-xs font-mono">
+                  {timerSeconds > 0 ? (
+                    <span className="text-amber-400 flex items-center gap-1.5 bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-400/30">
+                      <span>⏱ Kod amal qilish muddati:</span>
+                      <b className="text-amber-300">{formatTimer(timerSeconds)}</b>
+                    </span>
+                  ) : (
+                    <span className="text-rose-400 bg-rose-500/10 px-3 py-1.5 rounded-lg border border-rose-400/30">
+                      ⚠️ Kod muddati tugadi! Yangi kod so&apos;rang.
+                    </span>
+                  )}
                 </div>
 
+                {/* Verify Button */}
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => handleVerifyOtp()}
                   disabled={loading || otpDigits.join("").length < 6}
-                  className="w-full py-4 rounded-xl font-bold text-sm uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-neonCyan transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-4 rounded-xl font-bold text-sm uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-neonCyan transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {loading ? (
                     <RefreshCw className="w-5 h-5 animate-spin" />
                   ) : (
                     <>
-                      <ShieldCheck className="w-5 h-5" />
-                      <span>Tasdiqlash va Cyber Passni Olish</span>
+                      <span>Kodni Tasdiqlash</span>
+                      <ArrowRight className="w-4 h-4" />
                     </>
                   )}
                 </button>
-              </form>
+
+                {/* Resend and Back buttons */}
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setErrorMessage("");
+                    }}
+                    className="text-gray-400 hover:text-white flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Ortga</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={!canResend || loading}
+                    className="text-cyan-400 hover:text-cyan-300 disabled:opacity-40 disabled:hover:text-cyan-400 font-bold"
+                  >
+                    Kodni qayta yuborish
+                  </button>
+                </div>
+              </div>
             )}
 
-            {/* ================= STEP 4: CYBER PASS SUCCESS ================= */}
+            {/* ================= STEP 4: VERIFIED CYBER PASS & PROFILE ================= */}
             {step === 4 && participant && (
-              <CyberPassCard participant={participant} />
+              <div className="space-y-6 text-center">
+                {/* 3D Interactive Cyber Pass Card */}
+                <CyberPassCard
+                  participant={participant}
+                  onAvatarChange={handleAvatarUpdate}
+                  onOpenDashboard={() => {
+                    onClose();
+                    if (onOpenHub) onOpenHub();
+                  }}
+                />
+
+                {/* Hub and Academy Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onOpenHub) onOpenHub();
+                    }}
+                    className="py-4 px-5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-amber-500 via-orange-600 to-rose-600 hover:opacity-95 shadow-[0_0_25px_rgba(245,158,11,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+                  >
+                    <Flame className="w-4 h-4 text-yellow-300 animate-pulse" />
+                    <span>🔥 Student Hub (Streak & Test)</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      if (onOpenAcademy) {
+                        onOpenAcademy(participant.trackId);
+                      }
+                    }}
+                    className="py-4 px-5 rounded-2xl font-black text-xs uppercase tracking-wider text-white bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:opacity-95 shadow-[0_0_25px_rgba(0,240,255,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 group"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                    <span>🎓 Video Darslar (+250 XP)</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </div>
+
+                {/* Quick actions: Logout or Close */}
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onLogout) {
+                        onLogout();
+                      }
+                      setParticipant(null);
+                      setMode("register");
+                      setStep(1);
+                    }}
+                    className="px-4 py-2.5 rounded-xl border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 text-xs font-bold font-mono transition-all flex items-center gap-1.5"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Akkauntdan Chiqish</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-bold uppercase tracking-wider shadow-neonCyan hover:opacity-95 transition-all"
+                  >
+                    Yopish
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </motion.div>

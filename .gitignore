@@ -25,8 +25,8 @@ node_modules/
 # ==========================================
 # Shaxsiy Ma'lumotlar & Seanslar bazasi (Xavfsizlik)
 # ==========================================
-/data/sessions.json
-!/data/.gitkeep
+data/*.json
+!data/.gitkeep
 
 # ==========================================
 # Log fayllar (Jurnal xatoliklari)

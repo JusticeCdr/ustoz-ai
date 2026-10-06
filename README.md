@@ -26,6 +26,10 @@ Loyiha quyidagi asosiy xususiyatlarni o'z ichiga oladi:
   2. Telegram deep link (`t.me/zamonaviy_kasblarr_bot?start=CODE`) va dinamik QR-kod orqali tasdiqlash.
   3. Bot orqali kelgan 6 xonali dinamik parolni kiritish (OTP).
   4. Holografik **Cyber Ticket** va shaxsiy ishtirokchi guvohnomasini qo'lga kiritish hamda yuklab olish.
+- **🎙 Multimodal AI Ovozli Karyera Maslahatchisi (Voice-to-Course AI):**
+  - **Telegram Botda:** Foydalanuvchi botga bevosita ovozli xabar (golos) yuboradi. AI ovozni tinglaydi, qiziqishlari va ko'nikmalarini tahlil qiladi hamda 5 ta zamonaviy kasbdan eng mosini 90-99% aniqlikda tanlab, to'g'ridan-to'g'ri ro'yxatdan o'tish tugmasini beradi.
+  - **Veb-saytda:** Jonli mikrofon, real vaqtda ovoz to'lqinlari (Audio Visualizer), brauzer ichida nutqni aniqlash (Speech Recognition) va AI tavsiya oynasi.
+  - **AI Dvigatellari:** Google Gemini 1.5/2.0 Flash (Multimodal Audio API), Groq/OpenAI Whisper hamda aqlli o'rnatilgan o'zbek tili neyron NLP tahlilchisi.
 
 ---
 

@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   QrCode,
   Send,
+  Camera,
+  Flame,
+  ArrowRight,
 } from "lucide-react";
 
 interface CyberPassCardProps {
@@ -24,10 +27,13 @@ interface CyberPassCardProps {
     xp: number;
     referralLink: string;
     verifiedAt: number;
+    avatarUrl?: string;
   };
+  onAvatarChange?: (newAvatarUrl: string) => void;
+  onOpenDashboard?: () => void;
 }
 
-export default function CyberPassCard({ participant }: CyberPassCardProps) {
+export default function CyberPassCard({ participant, onAvatarChange, onOpenDashboard }: CyberPassCardProps) {
   const [copied, setCopied] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +67,29 @@ export default function CyberPassCard({ participant }: CyberPassCardProps) {
     navigator.clipboard.writeText(participant.referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      if (onAvatarChange) {
+        onAvatarChange(base64);
+      }
+      try {
+        await fetch("/api/user/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            identifier: participant.participantId,
+            avatarUrl: base64,
+          }),
+        });
+      } catch (err) {}
+    };
+    reader.readAsDataURL(file);
   };
 
   const handlePrint = () => {
@@ -124,11 +153,52 @@ export default function CyberPassCard({ participant }: CyberPassCardProps) {
           </div>
 
           {/* Participant Details */}
-          <div className="space-y-3.5 mb-5 relative z-10">
-            <div>
-              <div className="text-[10px] font-mono uppercase text-gray-400">Ishtirokchi</div>
-              <div className="text-xl font-black text-white tracking-wide">
-                {participant.fullName}
+          <div className="space-y-4 mb-5 relative z-10">
+            <div className="flex items-center gap-3.5">
+              <div className="relative group/avatar">
+                <div className="w-14 h-14 rounded-2xl p-[2px] bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(6,182,212,0.4)] overflow-hidden shrink-0 relative">
+                  {participant.avatarUrl ? (
+                    <img
+                      src={participant.avatarUrl}
+                      alt={participant.fullName}
+                      className="w-full h-full object-cover rounded-[14px]"
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-[14px] bg-[#0c1435] flex items-center justify-center text-cyan-300 font-black text-xl font-mono">
+                      {participant.fullName ? participant.fullName.charAt(0).toUpperCase() : "U"}
+                    </div>
+                  )}
+                  {/* Hover upload button overlay */}
+                  <label className="absolute inset-0 bg-black/60 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer rounded-[14px]">
+                    <Camera className="w-4 h-4 text-cyan-300" />
+                    <span className="text-[8px] font-mono text-cyan-300 mt-0.5 font-bold">Yuklash</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="text-[10px] font-mono uppercase text-gray-400">Ishtirokchi</div>
+                  <label className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 cursor-pointer flex items-center gap-1">
+                    <Camera className="w-3 h-3" />
+                    <span>Rasm yuklash</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <div className="text-xl font-black text-white tracking-wide truncate">
+                  {participant.fullName}
+                </div>
               </div>
             </div>
 
@@ -209,6 +279,18 @@ export default function CyberPassCard({ participant }: CyberPassCardProps) {
           </button>
         </div>
       </div>
+
+      {/* Student Hub Direct Access */}
+      {onOpenDashboard && (
+        <button
+          onClick={onOpenDashboard}
+          className="w-full py-3.5 px-5 rounded-2xl font-black text-xs uppercase tracking-wider text-amber-300 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 hover:from-amber-500/30 hover:to-orange-500/30 border border-amber-400/50 shadow-[0_0_25px_rgba(245,158,11,0.25)] transition-all flex items-center justify-center gap-2.5 group"
+        >
+          <Flame className="w-4 h-4 text-amber-400 animate-pulse" />
+          <span>Student Hubga O&apos;tish (Streak, Sinov Testi & Sertifikat)</span>
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        </button>
+      )}
 
       {/* Action Buttons: Download & Telegram Share */}
       <div className="flex flex-col sm:flex-row gap-3 pt-1">

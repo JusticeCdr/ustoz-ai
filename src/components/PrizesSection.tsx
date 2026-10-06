@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Crown, Award, Sparkles, Users, Laptop, Tablet, Gift, CheckCircle2, Trophy, ShieldAlert } from "lucide-react";
 import { PRIZES } from "@/lib/constants";
 import { PrizeItem } from "@/types";
+import PrizeTrophy3D from "./PrizeTrophy3D";
 
 interface PrizesSectionProps {
   onOpenRegister: () => void;
@@ -24,7 +25,7 @@ export default function PrizesSection({ onOpenRegister }: PrizesSectionProps) {
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-amber-500/10 rounded-full blur-[160px] pointer-events-none -z-10" />
 
       {/* Header */}
-      <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+      <div className="text-center max-w-3xl mx-auto mb-10 space-y-4">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-panel border border-amber-400/40 text-amber-400 text-xs font-semibold uppercase tracking-wider">
           <Trophy className="w-3.5 h-3.5 text-amber-400" />
           <span>Sovrinlar Jamg&apos;armasi</span>
@@ -40,6 +41,9 @@ export default function PrizesSection({ onOpenRegister }: PrizesSectionProps) {
           Ustoz AI iqtidorli yoshlarni qo&apos;llab-quvvatlaydi. O&apos;z bilimlaringiz bilan grand sovrinlar va nufuzli grantlarni qo&apos;lga kiriting.
         </p>
       </div>
+
+      {/* 3D Interactive Trophy Centerpiece */}
+      <PrizeTrophy3D />
 
       {/* Featured 1st Place Card + 2nd & 3rd Place Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch mb-12">

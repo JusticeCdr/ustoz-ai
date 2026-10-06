@@ -4,9 +4,11 @@ import { CareerTrackId, RegistrationSession, LeaderboardUser } from "@/types";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SESSIONS_FILE = path.join(DATA_DIR, "sessions.json");
+const TG_USERS_FILE = path.join(DATA_DIR, "telegram_users.json");
 
-// In-memory cache
+// In-memory caches
 const sessionsMap = new Map<string, RegistrationSession>();
+const telegramUsersMap = new Map<string, { id: number; username?: string; firstName?: string; updatedAt: number }>();
 let initialized = false;
 
 function ensureDataDir() {
@@ -21,7 +23,6 @@ function ensureDataDir() {
 
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
-  // if starts with 998, keep it; if 9 digits (e.g. 901234567), prepend 998
   if (digits.length === 9) return `998${digits}`;
   if (digits.startsWith("998") && digits.length === 12) return digits;
   return digits;
@@ -102,12 +103,34 @@ function loadSessionsFromFile() {
     if (fs.existsSync(SESSIONS_FILE)) {
       const raw = fs.readFileSync(SESSIONS_FILE, "utf-8");
       const list: RegistrationSession[] = JSON.parse(raw);
-      list.forEach((s) => sessionsMap.set(s.sessionCode.toUpperCase(), s));
+      list.forEach((s) => {
+        sessionsMap.set(s.sessionCode.toUpperCase(), s);
+        // Also populate telegram users map if available
+        if (s.telegramUser?.id && s.phone) {
+          const clean = normalizePhone(s.phone);
+          if (!telegramUsersMap.has(clean)) {
+            telegramUsersMap.set(clean, {
+              id: s.telegramUser.id,
+              username: s.telegramUser.username,
+              firstName: s.telegramUser.firstName,
+              updatedAt: s.verifiedAt || Date.now(),
+            });
+          }
+        }
+      });
     } else {
-      // populate initial mock leaderboard
       INITIAL_MOCK_LEADERBOARD.forEach((s) => sessionsMap.set(s.sessionCode.toUpperCase(), s));
       saveSessionsToFile();
     }
+
+    if (fs.existsSync(TG_USERS_FILE)) {
+      const rawTg = fs.readFileSync(TG_USERS_FILE, "utf-8");
+      const mapObj = JSON.parse(rawTg);
+      Object.entries(mapObj).forEach(([phone, user]: [string, any]) => {
+        telegramUsersMap.set(normalizePhone(phone), user);
+      });
+    }
+
     initialized = true;
   } catch (err) {
     console.error("Failed to load sessions from file:", err);
@@ -122,6 +145,77 @@ function saveSessionsToFile() {
   } catch (err) {
     console.error("Failed to save sessions to file:", err);
   }
+}
+
+function saveTelegramUsersToFile() {
+  try {
+    ensureDataDir();
+    const obj: Record<string, any> = {};
+    telegramUsersMap.forEach((val, key) => {
+      obj[key] = val;
+    });
+    fs.writeFileSync(TG_USERS_FILE, JSON.stringify(obj, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to save telegram users to file:", err);
+  }
+}
+
+export function saveTelegramUser(
+  phone: string,
+  user: { id: number; username?: string; firstName?: string }
+) {
+  loadSessionsFromFile();
+  const clean = normalizePhone(phone);
+  if (!clean || clean.length < 7) return;
+
+  telegramUsersMap.set(clean, {
+    id: user.id,
+    username: user.username,
+    firstName: user.firstName,
+    updatedAt: Date.now(),
+  });
+  saveTelegramUsersToFile();
+
+  // Also link to any existing session with this phone
+  for (const session of Array.from(sessionsMap.values())) {
+    if (normalizePhone(session.phone) === clean) {
+      session.telegramUser = {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+      };
+      saveSessionsToFile();
+      break;
+    }
+  }
+}
+
+export function getTelegramUserByPhone(phone: string): {
+  id: number;
+  username?: string;
+  firstName?: string;
+} | null {
+  loadSessionsFromFile();
+  const clean = normalizePhone(phone);
+  const found = telegramUsersMap.get(clean);
+  if (found) return found;
+
+  // Search through verified sessions
+  for (const s of Array.from(sessionsMap.values())) {
+    if (normalizePhone(s.phone) === clean && s.telegramUser?.id) {
+      saveTelegramUser(clean, s.telegramUser);
+      return s.telegramUser;
+    }
+  }
+
+  // Suffix matching (e.g. without 998)
+  for (const [tgPhone, u] of Array.from(telegramUsersMap.entries())) {
+    if (tgPhone.endsWith(clean) || clean.endsWith(tgPhone)) {
+      return u;
+    }
+  }
+
+  return null;
 }
 
 export function generateSessionCode(): string {
@@ -142,6 +236,49 @@ export function generateParticipantId(): string {
   return `UZ-AI-2026-${num}`;
 }
 
+export function findVerifiedSessionByPhone(phone: string): RegistrationSession | null {
+  loadSessionsFromFile();
+  const clean = normalizePhone(phone);
+  for (const session of Array.from(sessionsMap.values())) {
+    if (session.status === "VERIFIED" && normalizePhone(session.phone) === clean) {
+      return session;
+    }
+  }
+  return null;
+}
+
+export function findSessionByPhoneOrCode(query: string): RegistrationSession | null {
+  loadSessionsFromFile();
+  const clean = query.trim();
+
+  // Direct code match
+  const byCode = getSession(clean);
+  if (byCode) return byCode;
+
+  // Participant ID match
+  for (const session of Array.from(sessionsMap.values())) {
+    if (
+      session.participantId &&
+      session.participantId.toLowerCase() === clean.toLowerCase()
+    ) {
+      return session;
+    }
+  }
+
+  // Phone match
+  const targetPhone = normalizePhone(clean);
+  if (targetPhone.length >= 7) {
+    for (const session of Array.from(sessionsMap.values())) {
+      const sessionPhone = normalizePhone(session.phone);
+      if (sessionPhone === targetPhone || sessionPhone.endsWith(targetPhone) || targetPhone.endsWith(sessionPhone)) {
+        return session;
+      }
+    }
+  }
+
+  return null;
+}
+
 export function createSession(data: {
   fullName: string;
   phone: string;
@@ -153,13 +290,15 @@ export function createSession(data: {
 
   const cleanPhone = normalizePhone(data.phone);
 
-  // Check if an existing unverified session with same phone exists
+  // Check if an existing session with same phone exists
   for (const existing of Array.from(sessionsMap.values())) {
-    if (existing.status !== "VERIFIED" && normalizePhone(existing.phone) === cleanPhone) {
-      existing.fullName = data.fullName.trim();
-      existing.trackId = data.trackId;
-      existing.trackTitle = data.trackTitle;
-      existing.referredBy = data.referredBy;
+    if (normalizePhone(existing.phone) === cleanPhone) {
+      if (existing.status !== "VERIFIED") {
+        existing.fullName = data.fullName.trim();
+        existing.trackId = data.trackId;
+        existing.trackTitle = data.trackTitle;
+        existing.referredBy = data.referredBy;
+      }
       saveSessionsToFile();
       return existing;
     }
@@ -192,42 +331,17 @@ export function getSession(sessionCode: string): RegistrationSession | null {
   return sessionsMap.get(code) || null;
 }
 
-/**
- * Find session by phone number or session code
- */
-export function findSessionByPhoneOrCode(query: string): RegistrationSession | null {
-  loadSessionsFromFile();
-  const clean = query.trim();
-
-  // Try direct code first
-  const byCode = getSession(clean);
-  if (byCode) return byCode;
-
-  // Try phone number matching
-  const targetPhone = normalizePhone(clean);
-  if (targetPhone.length >= 7) {
-    for (const session of Array.from(sessionsMap.values())) {
-      const sessionPhone = normalizePhone(session.phone);
-      if (sessionPhone.endsWith(targetPhone) || targetPhone.endsWith(sessionPhone)) {
-        return session;
-      }
-    }
-  }
-
-  return null;
-}
-
 export function setOtpForSession(
   sessionCode: string,
   otpCode: string,
-  telegramUser?: { id: number; username?: string; firstName?: string }
+  telegramUser?: { id: number; username?: string; firstName?: string },
+  expiresInMs: number = 60 * 1000 // Default: 1 minute (60 seconds)
 ): RegistrationSession | null {
   loadSessionsFromFile();
   const code = sessionCode.replace(/^verify_/i, "").trim().toUpperCase();
   let session = sessionsMap.get(code);
 
   if (!session) {
-    // Guest session initiated directly from bot
     session = {
       sessionCode: code,
       fullName: telegramUser?.firstName || "Telegram Foydalanuvchisi",
@@ -236,6 +350,7 @@ export function setOtpForSession(
       trackTitle: "Sun'iy Intellekt va Prompt Engineering",
       status: "WAITING_OTP",
       otpCode,
+      otpExpiresAt: Date.now() + expiresInMs,
       telegramUser,
       createdAt: Date.now(),
     };
@@ -245,8 +360,14 @@ export function setOtpForSession(
   }
 
   session.otpCode = otpCode;
+  session.otpExpiresAt = Date.now() + expiresInMs;
   session.status = "WAITING_OTP";
-  session.telegramUser = telegramUser;
+  if (telegramUser) {
+    session.telegramUser = telegramUser;
+    if (session.phone) {
+      saveTelegramUser(session.phone, telegramUser);
+    }
+  }
 
   sessionsMap.set(code, session);
   saveSessionsToFile();
@@ -254,25 +375,29 @@ export function setOtpForSession(
 }
 
 export function verifySessionOtp(
-  sessionCode: string,
-  enteredOtp: string
+  sessionCodeOrPhone: string,
+  enteredOtp: string,
+  meta?: { fullName?: string; trackId?: CareerTrackId; trackTitle?: string }
 ): { success: boolean; session?: RegistrationSession; error?: string } {
   loadSessionsFromFile();
-  const code = sessionCode.replace(/^verify_/i, "").trim().toUpperCase();
-  const session = sessionsMap.get(code);
+  const session = findSessionByPhoneOrCode(sessionCodeOrPhone);
 
   if (!session) {
     return { success: false, error: "Ro'yxatdan o'tish seansi topilmadi yoki eskirgan." };
   }
 
-  if (session.status === "VERIFIED") {
-    return { success: true, session };
-  }
-
   if (!session.otpCode) {
     return {
       success: false,
-      error: "Telegram bot orqali tasdiqlash kodi hali olinmagan. Iltimos, avval botda Start bosing.",
+      error: "Tasdiqlash kodi hali olinmagan. Iltimos, Telegram orqali kodni so'rang.",
+    };
+  }
+
+  // Check 1-minute expiration
+  if (session.otpExpiresAt && Date.now() > session.otpExpiresAt) {
+    return {
+      success: false,
+      error: "Tasdiqlash kodining amal qilish muddati (1 daqiqa) tugagan! Iltimos yangi kod oling.",
     };
   }
 
@@ -283,14 +408,18 @@ export function verifySessionOtp(
   // Verification successful!
   session.status = "VERIFIED";
   session.verifiedAt = Date.now();
+  if (meta?.fullName) session.fullName = meta.fullName;
+  if (meta?.trackId) session.trackId = meta.trackId;
+  if (meta?.trackTitle) session.trackTitle = meta.trackTitle;
+
   if (!session.participantId) {
     session.participantId = generateParticipantId();
   }
-  session.xp = (session.xp || 100); // 100 XP starting bonus
+  session.xp = session.xp || 100;
   session.referralCode = session.participantId;
   session.referralCount = session.referralCount || 0;
 
-  // If this participant was referred by another participant, reward referrer +50 XP
+  // Reward referrer if applicable
   if (session.referredBy) {
     for (const other of Array.from(sessionsMap.values())) {
       if (other.participantId === session.referredBy || other.referralCode === session.referredBy) {
@@ -301,9 +430,31 @@ export function verifySessionOtp(
     }
   }
 
-  sessionsMap.set(code, session);
+  sessionsMap.set(session.sessionCode.toUpperCase(), session);
   saveSessionsToFile();
   return { success: true, session };
+}
+
+export function updateUserProfile(
+  identifier: string,
+  updates: { fullName?: string; avatarUrl?: string }
+): { ok: boolean; session?: RegistrationSession; error?: string } {
+  loadSessionsFromFile();
+  const session = findSessionByPhoneOrCode(identifier);
+  if (!session) {
+    return { ok: false, error: "Foydalanuvchi topilmadi." };
+  }
+
+  if (updates.fullName && updates.fullName.trim().length >= 2) {
+    session.fullName = updates.fullName.trim();
+  }
+  if (updates.avatarUrl !== undefined) {
+    session.avatarUrl = updates.avatarUrl;
+  }
+
+  sessionsMap.set(session.sessionCode.toUpperCase(), session);
+  saveSessionsToFile();
+  return { ok: true, session };
 }
 
 export function getLeaderboard(): LeaderboardUser[] {
@@ -322,6 +473,14 @@ export function getLeaderboard(): LeaderboardUser[] {
     trackTitle: s.trackTitle,
     xp: s.xp || 100,
     referralCount: s.referralCount || 0,
-    badge: idx === 0 ? "Oltin Kiber Lider" : idx === 1 ? "Kumush Challenger" : idx === 2 ? "Bronza Strateg" : "Cyber Ishtirokchi",
+    avatarUrl: s.avatarUrl,
+    badge:
+      idx === 0
+        ? "Oltin Kiber Lider"
+        : idx === 1
+        ? "Kumush Challenger"
+        : idx === 2
+        ? "Bronza Strateg"
+        : "Cyber Ishtirokchi",
   }));
 }

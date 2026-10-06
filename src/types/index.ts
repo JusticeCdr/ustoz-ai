@@ -51,6 +51,8 @@ export interface RegistrationSession {
   trackTitle: string;
   status: "INITIATED" | "WAITING_OTP" | "VERIFIED" | "EXPIRED";
   otpCode?: string;
+  otpExpiresAt?: number;
+  avatarUrl?: string;
   telegramUser?: {
     id: number;
     username?: string;
@@ -74,6 +76,33 @@ export interface LeaderboardUser {
   xp: number;
   referralCount: number;
   badge: string;
+  avatarUrl?: string;
+}
+
+export interface AuthParticipant {
+  participantId: string;
+  fullName: string;
+  phone: string;
+  trackId: CareerTrackId;
+  trackTitle: string;
+  sessionCode?: string;
+  xp: number;
+  referralCode?: string;
+  referralLink: string;
+  verifiedAt: number;
+  badge?: string;
+  avatarUrl?: string;
+  streakDays?: number;
+  dailyQuestCompleted?: boolean;
+  mockTestCompleted?: boolean;
+  mockTestScore?: number;
+  projectSubmission?: {
+    link: string;
+    notes: string;
+    status: "tayyorgarlik" | "topshirildi" | "tekshiruvda" | "tasdiqlandi";
+    submittedAt: number;
+  };
+  certificateUnlocked?: boolean;
 }
 
 export interface QuizQuestion {

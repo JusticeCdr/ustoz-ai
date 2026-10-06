@@ -5,7 +5,7 @@ import { TELEGRAM_BOT_USERNAME } from "@/lib/constants";
 
 export default function Footer() {
   return (
-    <footer className="relative border-t border-white/10 bg-[#04060f] pt-16 pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <footer className="relative border-t border-white/10 bg-[#04060f]/85 backdrop-blur-xl pt-16 pb-12 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Background ambient lighting */}
       <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-32 bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
 
